@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gelişmiş PDF Düzenleyici</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+    <header class="main-toolbar">
+        <div class="tool-group file-tools">
+            <label for="file-input" class="tool-btn file-label">
+                <i class="fa-solid fa-file-pdf"></i> PDF Yükle
+            </label>
+            <input type="file" id="file-input" accept="application/pdf" style="display: none;">
+        </div>
+
+        <div class="tool-group navigation-tools" style="display: none;">
+            <button class="tool-btn" id="prev-page"><i class="fa-solid fa-chevron-left"></i></button>
+            <span id="page-indicator">Sayfa <span id="page-num">0</span> / <span id="page-count">0</span></span>
+            <button class="tool-btn" id="next-page"><i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+
+        <div class="tool-group zoom-tools" style="display: none;">
+            <button class="tool-btn" id="zoom-out"><i class="fa-solid fa-search-minus"></i></button>
+            <span id="zoom-level">100%</span>
+            <button class="tool-btn" id="zoom-in"><i class="fa-solid fa-search-plus"></i></button>
+        </div>
+
+        <div class="tool-group drawing-tools" style="display: none;">
+            <button class="tool-btn active" id="tool-select" data-tool="select" title="Seçim Aracı">
+                <i class="fa-solid fa-mouse-pointer"></i>
+            </button>
+            <button class="tool-btn" id="tool-pencil" data-tool="pencil" title="Serbest Çizim">
+                <i class="fa-solid fa-pencil"></i>
+            </button>
+            <button class="tool-btn" id="tool-text" data-tool="text" title="Metin Ekle">
+                <i class="fa-solid fa-font"></i>
+            </button>
+            <button class="tool-btn" id="tool-arrow" data-tool="arrow" title="Ok Ekle">
+                <i class="fa-solid fa-arrow-up-long"></i>
+            </button>
+            <button class="tool-btn" id="tool-rect" data-tool="rect" title="Dikdörtgen Ekle">
+                <i class="fa-regular fa-square"></i>
+            </button>
+            <button class="tool-btn" id="tool-circle" data-tool="circle" title="Elips Ekle">
+                <i class="fa-regular fa-circle"></i>
+            </button>
+             <button class="tool-btn" id="tool-highlight" data-tool="highlight" title="Vurgula">
+                <i class="fa-solid fa-highlighter"></i>
+            </button>
+        </div>
+
+        <div class="tool-group save-tools" style="display: none;">
+            <button class="tool-btn download-btn" id="download-pdf">
+                <i class="fa-solid fa-download"></i> İndir
+            </button>
+        </div>
+    </header>
+
+    <div id="context-toolbar" style="display: none;">
+        <div class="tool-group">
+            <label for="color-picker" title="Renk"><i class="fa-solid fa-palette"></i></label>
+            <input type="color" id="color-picker" value="#ff0000">
+        </div>
+        <div class="tool-group" id="stroke-width-group">
+            <label for="stroke-width" title="Kalınlık"><i class="fa-solid fa-grip-lines-vertical"></i></label>
+            <input type="range" id="stroke-width" min="1" max="50" value="5">
+        </div>
+        <div class="tool-group" id="font-size-group">
+            <label for="font-size" title="Font Boyutu"><i class="fa-solid fa-text-height"></i></label>
+            <input type="number" id="font-size" min="8" max="120" value="24">
+        </div>
+        <div class="tool-group" id="opacity-group">
+            <label for="opacity-slider" title="Opaklık"><i class="fa-regular fa-eye"></i></label>
+            <input type="range" id="opacity-slider" min="0.1" max="1.0" step="0.1" value="0.5">
+        </div>
+        <button class="tool-btn delete-btn" id="delete-obj" title="Sil">
+            <i class="fa-solid fa-trash-can"></i>
+        </button>
+    </div>
+
+    <main id="main-content">
+        <div id="loader" style="display: none;">
+            <div class="spinner"></div>
+            <span>Yükleniyor...</span>
+        </div>
+        <div id="editor-container">
+            </div>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+    <script src="assets/script/script.js"></script>
+
+</body>
+</html>

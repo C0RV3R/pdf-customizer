@@ -1,0 +1,196 @@
+:root {
+    --primary-color: #007bff;
+    --primary-hover: #0056b3;
+    --danger-color: #dc3545;
+    --danger-hover: #a71d2a;
+    --bg-light: #f8f9fa;
+    --bg-dark: #343a40;
+    --bg-white: #ffffff;
+    --border-color: #dee2e6;
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    margin: 0;
+    background-color: var(--bg-light);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden; /* Sayfanın kaymasını engelle */
+}
+
+/* --- 1. Ana Araç Çubuğu --- */
+.main-toolbar {
+    display: flex;
+    flex-wrap: wrap; /* Küçük ekranlarda sarsın */
+    align-items: center;
+    padding: 8px 16px;
+    background-color: var(--bg-white);
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: var(--shadow);
+    z-index: 100;
+}
+
+.tool-group {
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    border-right: 1px solid var(--border-color);
+}
+.tool-group:last-child {
+    border-right: none;
+    margin-left: auto; /* İndir butonunu sağa yasla */
+}
+
+.tool-btn {
+    background: none;
+    border: none;
+    padding: 10px 12px;
+    margin: 0 2px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    color: #555;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.tool-btn:hover {
+    background-color: #f0f0f0;
+    color: #000;
+}
+
+.tool-btn.active {
+    background-color: var(--primary-color);
+    color: var(--bg-white);
+}
+
+.tool-btn.file-label {
+    background-color: var(--primary-color);
+    color: white;
+    font-weight: 500;
+}
+.tool-btn.file-label:hover {
+    background-color: var(--primary-hover);
+}
+
+.tool-btn.download-btn {
+    background-color: #28a745;
+    color: white;
+    font-weight: 500;
+}
+.tool-btn.download-btn:hover {
+    background-color: #1e7e34;
+}
+
+#page-indicator, #zoom-level {
+    margin: 0 10px;
+    font-size: 14px;
+    color: #333;
+    white-space: nowrap;
+}
+
+/* --- 2. Bağlamsal Araç Çubuğu --- */
+#context-toolbar {
+    position: absolute;
+    top: 80px; /* Ana çubuğun hemen altına */
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    background: var(--bg-dark);
+    padding: 8px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 101;
+}
+#context-toolbar label {
+    color: white;
+    margin: 0 5px 0 10px;
+}
+#context-toolbar input[type="color"] {
+    width: 25px;
+    height: 25px;
+    padding: 0;
+    border: 1px solid #777;
+    border-radius: 4px;
+}
+#context-toolbar input[type="range"] {
+    width: 80px;
+}
+#context-toolbar input[type="number"] {
+    width: 50px;
+}
+.delete-btn {
+    background-color: var(--danger-color);
+    color: white;
+    margin-left: 10px;
+}
+.delete-btn:hover {
+    background-color: var(--danger-hover);
+    color: white;
+}
+
+/* --- 3. Ana Düzenleyici Alanı --- */
+#main-content {
+    flex-grow: 1; /* Kalan tüm alanı kapla */
+    overflow: auto; /* PDF büyükse kaydırmayı sağlar */
+    display: flex;
+    justify-content: center;
+    align-items: flex-start; /* Üstten başla */
+    padding-top: 20px;
+    position: relative;
+}
+
+#editor-container {
+    position: relative;
+    margin: 20px;
+    /* Canvas'lar JS tarafından eklenecek */
+}
+
+/* --- Kritik Katmanlama Stilleri --- */
+#pdf-canvas {
+    /* Alt katman (PDF) */
+    position: relative;
+    z-index: 1;
+    box-shadow: var(--shadow);
+    border: 1px solid #ccc;
+}
+
+#fabric-canvas {
+    /* Üst katman (Düzenleme) */
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    /* JS tarafında pdf-canvas ile aynı konuma ve boyuta getirilecek */
+}
+
+/* --- 4. Yükleyici (Loader) --- */
+#loader {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+}
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid var(--primary-color);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 15px;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
