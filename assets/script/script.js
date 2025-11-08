@@ -1,510 +1,307 @@
-const { PDFDocument, rgb, StandardFonts } = PDFLib;
-const pdfjsLib = window['pdfjs-dist/build/pdf'];
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Gerekli kütüphaneleri ve DOM elementlerini seç
+const { PDFDocument, rgb } = PDFLib; 
+const pdfjsLib = window['pdfjs-dist/build/pdf']; 
 
+// PDF.js worker yolunu ayarlayın (zorunlu)
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+// DOM Elementleri
 const fileInput = document.getElementById('file-input');
 const downloadBtn = document.getElementById('download-pdf');
+const addTextBtn = document.getElementById('add-text');
+const addLineBtn = document.getElementById('add-line');
+const drawModeBtn = document.getElementById('draw-mode');
 const editorContainer = document.getElementById('editor-container');
-const loader = document.getElementById('loader');
 
-const prevPageBtn = document.getElementById('prev-page');
-const nextPageBtn = document.getElementById('next-page');
-const pageNumSpan = document.getElementById('page-num');
-const pageCountSpan = document.getElementById('page-count');
-const zoomInBtn = document.getElementById('zoom-in');
-const zoomOutBtn = document.getElementById('zoom-out');
-const zoomLevelSpan = document.getElementById('zoom-level');
-
-const toolButtons = document.querySelectorAll('.drawing-tools .tool-btn');
-const toolSelectBtn = document.getElementById('tool-select');
-
-const contextToolbar = document.getElementById('context-toolbar');
+// Ayar elementleri
+const contextOptions = document.getElementById('context-options');
 const colorPicker = document.getElementById('color-picker');
-const strokeWidthSlider = document.getElementById('stroke-width');
 const fontSizeInput = document.getElementById('font-size');
-const opacitySlider = document.getElementById('opacity-slider');
+const strokeWidthInput = document.getElementById('stroke-width');
 const deleteBtn = document.getElementById('delete-obj');
-const strokeWidthGroup = document.getElementById('stroke-width-group');
-const fontSizeGroup = document.getElementById('font-size-group');
-const opacityGroup = document.getElementById('opacity-group');
 
-let pdfDoc = null;
-let currentPageNum = 1;
-let currentZoom = 1;
-let originalPdfBytes = null;
-let fabricCanvas = null;
-let fabricState = {};
-let currentTool = 'select';
+// Global Değişkenler
+let fabricCanvas = null; 
+let pdfDoc = null; 
+let originalPdfBytes = null; 
+const PAGE_TO_RENDER = 1; 
+
+// --- Adım 1: PDF Yükle ve Görüntüle (PDF.js) ---
 
 fileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
-    if (!file || file.type !== 'application/pdf') return;
-
-    showLoader(true);
+    if (!file || file.type !== 'application/pdf') {
+        alert('Lütfen geçerli bir PDF dosyası seçin.');
+        return;
+    }
+    
+    editorContainer.innerHTML = 'PDF yükleniyor ve işleniyor...';
+    
     const fileReader = new FileReader();
-
+    
     fileReader.onload = async function() {
-        originalPdfBytes = new UintArray(this.result);
-        
         try {
+            originalPdfBytes = this.result; 
+            
             const loadingTask = pdfjsLib.getDocument({ data: originalPdfBytes });
             pdfDoc = await loadingTask.promise;
             
-            currentPageNum = 1;
-            fabricState = {};
-            pageCountSpan.textContent = pdfDoc.numPages;
-            
-            await renderPage(currentPageNum);
-            showTools(true);
+            await renderPage(PAGE_TO_RENDER);
+
         } catch (error) {
-            console.error("PDF yüklenirken hata:", error);
-            alert("PDF yüklenemedi. Dosya bozuk olabilir.");
-        } finally {
-            showLoader(false);
+            console.error("PDF yükleme hatası:", error);
+            editorContainer.innerHTML = 'PDF yüklenirken bir hata oluştu.';
         }
     };
+    
     fileReader.readAsArrayBuffer(file);
 });
 
 async function renderPage(pageNum) {
-    if (!pdfDoc) return;
-    showLoader(true);
-
-    if (fabricCanvas) {
-        saveFabricState();
-        fabricCanvas.dispose();
-        fabricCanvas = null;
-    }
-
-    editorContainer.innerHTML = '';
+    editorContainer.innerHTML = ''; 
 
     const page = await pdfDoc.getPage(pageNum);
-    const viewport = page.getViewport({ scale: currentZoom });
+    const scale = 1.5; 
+    const viewport = page.getViewport({ scale: scale });
 
+    // 1. Alt Katman: PDF Canvas'ı
     const pdfCanvas = document.createElement('canvas');
     pdfCanvas.id = 'pdf-canvas';
     pdfCanvas.width = viewport.width;
     pdfCanvas.height = viewport.height;
     const context = pdfCanvas.getContext('2d');
-
+    
+    // 2. Üst Katman: Düzenleme Canvas'ı (Fabric.js)
     const fabricCanvasEl = document.createElement('canvas');
     fabricCanvasEl.id = 'fabric-canvas';
     fabricCanvasEl.width = viewport.width;
     fabricCanvasEl.height = viewport.height;
     
+    // Canvas'ları container'a ekle
     editorContainer.appendChild(pdfCanvas);
-    editorContainer.appendChild(fabricCanvasEl);
+    editorContainer.appendChild(fabricCanvasEl); 
     
+    // PDF sayfasını alt katmana çiz
     await page.render({ canvasContext: context, viewport: viewport }).promise;
 
-    fabricCanvas = new fabric.Canvas(fabricCanvasEl, {
-        isDrawingMode: false,
-    });
-
-    if (fabricState[pageNum]) {
-        fabricCanvas.loadFromJSON(fabricState[pageNum], fabricCanvas.renderAll.bind(fabricCanvas));
-    }
-
-    setupFabricListeners();
-    setTool(currentTool);
-
-    pageNumSpan.textContent = pageNum;
-    showLoader(false);
+    // Fabric.js'yi üst katmanda başlat
+    initializeFabric(fabricCanvasEl, viewport.width, viewport.height);
 }
 
-prevPageBtn.addEventListener('click', () => {
-    if (currentPageNum <= 1) return;
-    currentPageNum--;
-    renderPage(currentPageNum);
-});
+// --- Adım 2: Etkileşimli Düzenleme Katmanı (Fabric.js) ---
 
-nextPageBtn.addEventListener('click', () => {
-    if (currentPageNum >= pdfDoc.numPages) return;
-    currentPageNum++;
-    renderPage(currentPageNum);
-});
-
-zoomInBtn.addEventListener('click', () => {
-    currentZoom += 0.25;
-    zoomLevelSpan.textContent = `${Math.round(currentZoom * 100)}%`;
-    renderPage(currentPageNum);
-});
-
-zoomOutBtn.addEventListener('click', () => {
-    if (currentZoom <= 0.25) return;
-    currentZoom -= 0.25;
-    zoomLevelSpan.textContent = `${Math.round(currentZoom * 100)}%`;
-    renderPage(currentPageNum);
-});
-
-toolButtons.forEach(btn => {
-    btn.addEventListener('click', (e) => {
-        toolButtons.forEach(b => b.classList.remove('active'));
-        const clickedBtn = e.currentTarget;
-        clickedBtn.classList.add('active');
-        
-        setTool(clickedBtn.dataset.tool);
-    });
-});
-
-function setTool(tool) {
-    if (!fabricCanvas) return;
+function initializeFabric(canvasEl, width, height) {
+    if (fabricCanvas) {
+        fabricCanvas.dispose();
+    }
     
-    fabricCanvas.discardActiveObject();
-    fabricCanvas.renderAll();
+    fabricCanvas = new fabric.Canvas(canvasEl, {
+        width: width,
+        height: height,
+        selection: true 
+    });
+    
+    // Event listener'lar
+    fabricCanvas.on('selection:created', (e) => showContextOptions(e.target));
+    fabricCanvas.on('selection:updated', (e) => showContextOptions(e.target));
+    fabricCanvas.on('selection:cleared', () => {
+        contextOptions.style.display = 'none';
+        fabricCanvas.isDrawingMode = false;
+        drawModeBtn.textContent = '✍️ Serbest Çizim';
+    });
 
-    fabricCanvas.isDrawingMode = false;
-    fabricCanvas.selection = true;
-    fabricCanvas.defaultCursor = 'default';
-
-    currentTool = tool;
-
-    switch (tool) {
-        case 'select':
-            fabricCanvas.selection = true;
-            break;
-        case 'pencil':
-            fabricCanvas.isDrawingMode = true;
+    // Çizim modu ayarlarını bağlama
+    colorPicker.addEventListener('input', () => {
+        if (fabricCanvas && fabricCanvas.isDrawingMode) {
             fabricCanvas.freeDrawingBrush.color = colorPicker.value;
-            fabricCanvas.freeDrawingBrush.width = parseInt(strokeWidthSlider.value, 10);
-            break;
-        case 'text':
-        case 'arrow':
-        case 'rect':
-        case 'circle':
-        case 'highlight':
-            fabricCanvas.selection = false;
-            fabricCanvas.defaultCursor = 'crosshair';
-            break;
-    }
+        }
+    });
+    strokeWidthInput.addEventListener('input', () => {
+        if (fabricCanvas && fabricCanvas.isDrawingMode) {
+            fabricCanvas.freeDrawingBrush.width = parseInt(strokeWidthInput.value, 10);
+        }
+    });
 }
 
-function setupFabricListeners() {
+// --- Adım 3: Araç Çubuğu Fonksiyonları (Kullanıcı İşlemleri) ---
+
+// Metin Ekle
+addTextBtn.addEventListener('click', () => {
+    if (!fabricCanvas) return;
+    fabricCanvas.isDrawingMode = false;
+    drawModeBtn.textContent = '✍️ Serbest Çizim';
+    
+    const text = new fabric.IText('Yeni Metin', {
+        left: 100,
+        top: 100,
+        fill: colorPicker.value,
+        fontSize: parseInt(fontSizeInput.value, 10),
+        fontFamily: 'Arial',
+        padding: 5, 
+        borderColor: 'red'
+    });
+    
+    fabricCanvas.add(text);
+    fabricCanvas.setActiveObject(text);
+});
+
+// Çizgi Ekle
+addLineBtn.addEventListener('click', () => {
+    if (!fabricCanvas) return;
+    fabricCanvas.isDrawingMode = false;
+    drawModeBtn.textContent = '✍️ Serbest Çizim';
+
+    const line = new fabric.Line([50, 50, 200, 50], {
+        left: 100,
+        top: 150,
+        stroke: colorPicker.value,
+        strokeWidth: parseInt(strokeWidthInput.value, 10),
+    });
+    fabricCanvas.add(line);
+    fabricCanvas.setActiveObject(line);
+});
+
+// Serbest Çizim Modunu Aç/Kapat
+drawModeBtn.addEventListener('click', () => {
     if (!fabricCanvas) return;
 
-    fabricCanvas.off();
-
-    let isDrawing = false;
-    let startPos = { x: 0, y: 0 };
-    let newObject = null;
-
-    fabricCanvas.on('mouse:down', (o) => {
-        if (fabricCanvas.isDrawingMode || currentTool === 'select') {
-            return;
-        }
-
-        isDrawing = true;
-        startPos = fabricCanvas.getPointer(o.e);
-        const color = colorPicker.value;
-        const strokeWidth = parseInt(strokeWidthSlider.value, 10);
-
-        switch (currentTool) {
-            case 'text':
-                newObject = new fabric.IText('Buraya Yazın', {
-                    left: startPos.x,
-                    top: startPos.y,
-                    fill: color,
-                    fontSize: parseInt(fontSizeInput.value, 10),
-                    fontFamily: 'Arial',
-                    originX: 'left',
-                    originY: 'top',
-                    editable: true
-                });
-                
-                fabricCanvas.add(newObject);
-                fabricCanvas.setActiveObject(newObject);
-                setTool('select');
-                toolSelectBtn.click();
-                isDrawing = false;
-                newObject = null;
-                return;
-                
-            case 'arrow':
-                const line = new fabric.Line([0, 0, 0, 0], { // Başlangıç 0,0 olarak ayarla
-                    stroke: color,
-                    strokeWidth: strokeWidth,
-                });
-                const arrowHead = new fabric.Triangle({
-                    left: 0,
-                    top: 0,
-                    originX: 'center',
-                    originY: 'center',
-                    fill: color,
-                    width: strokeWidth * 3,
-                    height: strokeWidth * 3,
-                    angle: 90
-                });
-                // Grubu tıklama pozisyonunda oluştur
-                newObject = new fabric.Group([line, arrowHead], {
-                    left: startPos.x,
-                    top: startPos.y,
-                    subTargetCheck: true,
-                    selectable: true
-                });
-                break;
-            case 'rect':
-                newObject = new fabric.Rect({
-                    left: startPos.x,
-                    top: startPos.y,
-                    width: 0,
-                    height: 0,
-                    stroke: color,
-                    strokeWidth: strokeWidth,
-                    fill: 'transparent',
-                });
-                break;
-            case 'circle':
-                newObject = new fabric.Circle({
-                    left: startPos.x,
-                    top: startPos.y,
-                    radius: 0,
-                    stroke: color,
-                    strokeWidth: strokeWidth,
-                    fill: 'transparent',
-                    originX: 'left',
-                    originY: 'top'
-                });
-                break;
-            case 'highlight':
-                newObject = new fabric.Rect({
-                    left: startPos.x,
-                    top: startPos.y,
-                    width: 0,
-                    height: 0,
-                    fill: color,
-                    opacity: 0.4,
-                    strokeWidth: 0,
-                });
-                break;
-        }
-        
-        if (newObject) {
-             fabricCanvas.add(newObject);
-             fabricCanvas.renderAll();
-        }
-    });
-
-    fabricCanvas.on('mouse:move', (o) => {
-        if (!isDrawing || !newObject) return;
-        const pos = fabricCanvas.getPointer(o.e);
-
-        const dx = pos.x - startPos.x;
-        const dy = pos.y - startPos.y;
-
-        switch (currentTool) {
-            case 'arrow':
-                const line = newObject.item(0);
-                const arrowHead = newObject.item(1);
-                
-                line.set({ x2: dx, y2: dy });
-                
-                const angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
-                arrowHead.set({ 
-                    left: dx, 
-                    top: dy,
-                    angle: angle
-                });
-                break;
-            case 'rect':
-            case 'highlight':
-                newObject.set({
-                    width: Math.abs(dx),
-                    height: Math.abs(dy),
-                    originX: dx < 0 ? 'right' : 'left',
-                    originY: dy < 0 ? 'bottom' : 'top'
-                });
-                break;
-            case 'circle':
-                 const radius = Math.sqrt(dx * dx + dy * dy) / 2;
-                 newObject.set({
-                    radius: radius,
-                    originX: 'center',
-                    originY: 'center',
-                    left: startPos.x + dx / 2,
-                    top: startPos.y + dy / 2
-                 });
-                break;
-        }
-        if (newObject) fabricCanvas.renderAll();
-    });
-
-    fabricCanvas.on('mouse:up', () => {
-        if (!isDrawing) return;
-        
-        if (newObject) {
-            newObject.setCoords();
-            fabricCanvas.setActiveObject(newObject);
-        }
-        
-        isDrawing = false;
-        newObject = null;
-        
-        setTool('select');
-        toolButtons.forEach(b => b.classList.remove('active'));
-        toolSelectBtn.classList.add('active');
-        fabricCanvas.renderAll();
-    });
-
-    fabricCanvas.on('selection:created', (e) => updateContextToolbar(e.target));
-    fabricCanvas.on('selection:updated', (e) => updateContextToolbar(e.target));
-    fabricCanvas.on('selection:cleared', () => contextToolbar.style.display = 'none');
-}
-
-function updateContextToolbar(obj) {
-    if (!obj) return;
-    contextToolbar.style.display = 'flex';
-
-    strokeWidthGroup.style.display = 'none';
-    fontSizeGroup.style.display = 'none';
-    opacityGroup.style.display = 'none';
+    fabricCanvas.isDrawingMode = !fabricCanvas.isDrawingMode;
     
-    if (obj.type === 'i-text') {
-        colorPicker.value = obj.get('fill');
+    if (fabricCanvas.isDrawingMode) {
+        drawModeBtn.textContent = '⛔ Çizimi Kapat';
+        fabricCanvas.freeDrawingBrush.width = parseInt(strokeWidthInput.value, 10);
+        fabricCanvas.freeDrawingBrush.color = colorPicker.value;
+    } else {
+        drawModeBtn.textContent = '✍️ Serbest Çizim';
+    }
+});
+
+// Seçili objenin ayarlarını menüye yansıt
+function showContextOptions(obj) {
+    contextOptions.style.display = 'flex';
+    
+    colorPicker.value = obj.get('fill') || obj.get('stroke') || '#000000';
+    
+    const isText = obj.type === 'i-text';
+    const isLineOrPath = obj.type === 'line' || obj.type === 'path';
+
+    // Font Boyutu
+    fontSizeInput.parentElement.style.display = isText ? 'inline-block' : 'none';
+    if (isText) {
         fontSizeInput.value = obj.get('fontSize');
-        fontSizeGroup.style.display = 'flex';
-        
-    } else if (obj.type === 'path') {
-        colorPicker.value = obj.get('stroke');
-        strokeWidthSlider.value = obj.get('strokeWidth');
-        strokeWidthGroup.style.display = 'flex';
+    }
 
-    } else if (obj.fill && obj.opacity < 1) {
-        colorPicker.value = obj.get('fill');
-        opacitySlider.value = obj.get('opacity');
-        opacityGroup.style.display = 'flex';
-
-    } else if (obj.type === 'group' || obj.type === 'rect' || obj.type === 'circle') {
-        const stroke = obj.get('stroke') || (obj._objects && obj._objects[0].get('stroke'));
-        const strokeW = obj.get('strokeWidth') || (obj._objects && obj._objects[0].get('strokeWidth'));
-        
-        colorPicker.value = stroke || '#ff0000';
-        strokeWidthSlider.value = strokeW || 5;
-        strokeWidthGroup.style.display = 'flex';
+    // Çizgi Kalınlığı
+    strokeWidthInput.parentElement.style.display = isLineOrPath ? 'inline-block' : 'none';
+    if (isLineOrPath) {
+        strokeWidthInput.value = obj.get('strokeWidth') || 3;
     }
 }
 
+// Ayarları seçili objeye uygula (input eventleri)
 colorPicker.addEventListener('input', (e) => {
     const obj = fabricCanvas.getActiveObject();
-    if (!obj) return;
-    
-    const color = e.target.value;
-    
-    if (obj.type === 'i-text') {
-        obj.set('fill', color);
-    } else if (obj.type === 'path') {
-        obj.set('stroke', color);
-    } else if (obj.fill && obj.opacity < 1) {
-         obj.set('fill', color);
-    } else if (obj.type === 'group') {
-        obj._objects.forEach(item => item.set(item.type === 'line' ? 'stroke' : 'fill', color));
-    } else {
-        obj.set('stroke', color);
+    if (obj) {
+        if (obj.type === 'i-text') {
+            obj.set('fill', e.target.value);
+        } else {
+            obj.set('stroke', e.target.value);
+        }
+        fabricCanvas.renderAll();
     }
-    fabricCanvas.renderAll();
-});
-
-strokeWidthSlider.addEventListener('input', (e) => {
-    const obj = fabricCanvas.getActiveObject();
-    if (!obj) return;
-    const width = parseInt(e.target.value, 10);
-    
-    if (obj.type === 'group') {
-        obj._objects[0].set('strokeWidth', width);
-        obj._objects[1].set({ width: width * 3, height: width * 3 });
-    } else {
-        obj.set('strokeWidth', width);
-    }
-    fabricCanvas.renderAll();
 });
 
 fontSizeInput.addEventListener('input', (e) => {
     const obj = fabricCanvas.getActiveObject();
     if (obj && obj.type === 'i-text') {
         obj.set('fontSize', parseInt(e.target.value, 10));
+        obj.setCoords(); 
         fabricCanvas.renderAll();
     }
 });
 
-opacitySlider.addEventListener('input', (e) => {
+strokeWidthInput.addEventListener('input', (e) => {
     const obj = fabricCanvas.getActiveObject();
-    if (obj) {
-        obj.set('opacity', parseFloat(e.target.value));
+    if (obj && (obj.type === 'line' || obj.type === 'path')) {
+        obj.set('strokeWidth', parseInt(e.target.value, 10));
         fabricCanvas.renderAll();
     }
 });
 
+// Sil Butonu
 deleteBtn.addEventListener('click', () => {
     const obj = fabricCanvas.getActiveObject();
     if (obj) {
         fabricCanvas.remove(obj);
-        contextToolbar.style.display = 'none';
+        contextOptions.style.display = 'none';
     }
 });
 
-function saveFabricState() {
-    if (fabricCanvas) {
-        fabricState[currentPageNum] = JSON.stringify(fabricCanvas.toJSON());
-    }
-}
+
+// --- Adım 4: Kaydetme ve İndirme (pdf-lib) ---
 
 downloadBtn.addEventListener('click', async () => {
-    if (!pdfDoc) {
+    if (!pdfDoc || !fabricCanvas) {
         alert("Lütfen önce bir PDF yükleyin.");
         return;
     }
-    showLoader(true);
 
-    saveFabricState();
+    const pdfLibDoc = await PDFDocument.load(originalPdfBytes);
+    const pages = pdfLibDoc.getPages();
+    const firstPage = pages[PAGE_TO_RENDER - 1];
+    const { width, height } = firstPage.getSize();
     
-    try {
-        const pdfLibDoc = await PDFDocument.load(originalPdfBytes);
-        const pages = pdfLibDoc.getPages();
-        const helveticaFont = await pdfLibDoc.embedFont(StandardFonts.Helvetica);
+    const fabricObjects = fabricCanvas.getObjects();
+
+    for (const obj of fabricObjects) {
         
-        for (let i = 1; i <= pdfDoc.numPages; i++) {
-            const pageData = fabricState[i];
-            if (!pageData) continue; 
-
-            const pdfLibPage = pages[i - 1];
-            const { width, height } = pdfLibPage.getSize();
+        // Renk dönüştürme
+        const hexColor = obj.get('fill') || obj.get('stroke');
+        const pdfColor = hexToRgb(hexColor);
+        
+        if (obj.type === 'i-text') {
+            // Metin koordinatları ve boyutu
+            // PDF-lib'de metin tabanı baz alındığı için ince ayar yapılır.
             
-            const tempCanvas = new fabric.StaticCanvas(null, { width, height });
-            
-            await new Promise(resolve => tempCanvas.loadFromJSON(pageData, resolve));
-            
-            const pngDataUrl = tempCanvas.toDataURL({ format: 'png' });
-            const pngImage = await pdfLibDoc.embedPng(pngDataUrl);
-            
-            pdfLibPage.drawImage(pngImage, {
-                x: 0,
-                y: 0,
-                width: width,
-                height: height,
+            firstPage.drawText(obj.text, {
+                x: obj.left,
+                y: height - (obj.top + (obj.height * obj.scaleY * 0.7)), 
+                size: obj.fontSize * obj.scaleY,
+                color: rgb(pdfColor.r, pdfColor.g, pdfColor.b),
             });
-            tempCanvas.dispose();
+        } else if (obj.type === 'line') {
+            // Basit Çizgi Kaydı
+            firstPage.drawLine({
+                start: { x: obj.left, y: height - (obj.top) },
+                end: { x: obj.left + obj.getScaledWidth(), y: height - (obj.top + obj.getScaledHeight()) },
+                thickness: obj.strokeWidth * obj.scaleX, 
+                color: rgb(pdfColor.r, pdfColor.g, pdfColor.b),
+            });
         }
-
-        const pdfBytes = await pdfLibDoc.save();
-        download(pdfBytes, `duzenlenmis-${fileInput.files[0].name}`, "application/pdf");
-
-    } catch (error) {
-        console.error("PDF kaydedilirken hata:", error);
-        alert("PDF kaydedilirken bir hata oluştu.");
-    } finally {
-        showLoader(false);
+        // * Serbest çizim (path) kaydı karmaşıklık nedeniyle desteklenmez.
     }
+
+    const pdfBytes = await pdfLibDoc.save();
+    download(pdfBytes, "duzenlenmis_pdf.pdf", "application/pdf");
 });
 
-function showLoader(show) {
-    loader.style.display = show ? 'flex' : 'none';
-}
 
-function showTools(show) {
-    const display = show ? 'flex' : 'none';
-    document.querySelector('.navigation-tools').style.display = display;
-    document.querySelector('.zoom-tools').style.display = display;
-    document.querySelector('.drawing-tools').style.display = display;
-    document.querySelector('.save-tools').style.display = display;
+// --- Yardımcı Fonksiyonlar ---
+
+function hexToRgb(hex) {
+    hex = hex.replace(/^#/, '');
+
+    let r = 0, g = 0, b = 0;
+    if (hex.length == 3) { 
+        r = parseInt(hex[0] + hex[0], 16);
+        g = parseInt(hex[1] + hex[1], 16);
+        b = parseInt(hex[2] + hex[2], 16);
+    } else if (hex.length == 6) { 
+        r = parseInt(hex.substring(0, 2), 16);
+        g = parseInt(hex.substring(2, 4), 16);
+        b = parseInt(hex.substring(4, 6), 16);
+    }
+    return { r: r / 255, g: g / 255, b: b / 255 };
 }
 
 function download(data, filename, type) {

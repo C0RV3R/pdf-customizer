@@ -1,200 +1,84 @@
-:root {
-    --primary-color: #007bff;
-    --success-color: #28a745;
-    --danger-color: #dc3545;
-    --toolbar-bg: #f8f9fa;
-    --body-bg: #e9ecef;
-    --border-color: #ced4da;
+body { 
+    font-family: Arial, sans-serif; 
+    margin: 20px; 
+    background-color: #f4f4f9; 
 }
 
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-    font-family: 'Roboto', sans-serif;
+h1 {
+    text-align: center;
+    color: #333;
 }
 
-body {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    background-color: var(--body-bg);
-}
-
-/* --- Loader --- */
-#loader {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(255, 255, 255, 0.9);
-    display: none; /* JS ile açılacak */
+#toolbar { 
+    display: flex; 
+    flex-wrap: wrap; /* Küçük ekranlarda alta kayması için */
+    gap: 10px; 
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    align-items: center;
     justify-content: center;
-    align-items: center;
-    flex-direction: column;
-    z-index: 1000;
 }
 
-.spinner {
-    border: 4px solid rgba(0, 0, 0, 0.1);
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border-left-color: var(--primary-color);
-    animation: spin 1s ease infinite;
-    margin-bottom: 10px;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* --- Header ve Footer (Toolbar'lar) --- */
-header, footer {
-    background-color: var(--toolbar-bg);
-    padding: 10px 20px;
-    border-bottom: 1px solid var(--border-color);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-
-footer {
-    border-top: 1px solid var(--border-color);
-    border-bottom: none;
-    margin-top: auto; /* Footbar'ı sayfanın altına sabitler */
-}
-
-.toolbar-group {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-/* --- Buton Stilleri --- */
-.btn {
+#toolbar button {
     padding: 8px 15px;
-    border: 1px solid var(--border-color);
+    border: none;
     border-radius: 4px;
     cursor: pointer;
-    background-color: white;
     transition: background-color 0.2s;
-    font-size: 14px;
+    background-color: #e0e0e0;
 }
 
-.btn:hover {
-    background-color: #e2e6ea;
+#toolbar button:hover { 
+    background-color: #ccc; 
 }
 
-.btn-primary {
-    background-color: var(--primary-color);
+#download-pdf {
+    background-color: #4CAF50 !important; 
     color: white;
-    border-color: var(--primary-color);
+    font-weight: bold;
 }
 
-.btn-primary:hover {
-    background-color: #0056b3;
+#download-pdf:hover {
+    background-color: #45a049 !important;
 }
 
-.btn-success {
-    background-color: var(--success-color);
-    color: white;
-    border-color: var(--success-color);
-}
-
-.btn-success:hover {
-    background-color: #1e7e34;
-}
-
-.btn-danger {
-    color: var(--danger-color);
-    border-color: var(--danger-color);
-}
-
-.btn-danger:hover {
-    background-color: #f8d7da;
-}
-
-.tool-btn {
-    width: 40px;
-    height: 40px;
-    padding: 0;
-    text-align: center;
-}
-
-.tool-btn.active {
-    background-color: var(--primary-color);
-    color: white;
-}
-
-/* --- Bağlamsal Araç Çubuğu --- */
-#context-toolbar label, #context-toolbar input[type="number"] {
-    font-size: 14px;
-}
-
-/* --- Ana İçerik ve Editör Alanı (KRİTİK) --- */
-main {
-    flex-grow: 1;
-    padding: 20px;
-    overflow: auto; /* Sayfa küçülürse ana içeriğin kaydırılmasına izin verir */
-    display: flex;
-    justify-content: center;
-    align-items: flex-start; /* İçeriğin yukarıda başlamasını sağlar */
-}
-
-#editor-wrapper {
-    /* Editör alanını ortalamak ve kaydırmak için wrapper */
-    overflow: auto; 
-    max-width: 100%;
-    /* PDF boyutu ne olursa olsun, wrapper'ın kenarında kaydırma çubuğu sağlar */
-}
-
-#editor-container {
-    position: relative;
-    /* Canvas'ları barındırır. Genişliği ve yüksekliği JS ile ayarlanır. */
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
-    background-color: white;
-}
-
-/* Canvas'ların üst üste gelmesini sağlayan KRİTİK CSS */
-#editor-container canvas {
-    position: absolute; 
-    top: 0;
-    left: 0;
+#editor-container { 
+    position: relative; 
+    width: fit-content; /* Sadece canvas boyutu kadar yer kaplar */
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    margin: 0 auto; /* Ortalamak için */
+    background-color: #fff;
 }
 
 #fabric-canvas {
-    z-index: 2; /* Fare olaylarını yakalaması için en üstte olmalı */
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 10; /* Düzenleme katmanı, PDF'in üstünde olmalı */
 }
 
 #pdf-canvas {
-    z-index: 1;
+    position: relative;
+    z-index: 5;
 }
 
-/* --- Footer Bilgileri --- */
-.page-info {
-    font-weight: bold;
-    min-width: 80px;
-    text-align: center;
+#context-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    padding: 10px;
+    background-color: #ffe0b2;
+    border-radius: 4px;
+    margin: 0 auto 15px auto; /* Ortala ve altta boşluk bırak */
+    width: fit-content;
+    max-width: 90%;
 }
 
-#zoom-level {
-    min-width: 60px;
-    text-align: center;
-}
-
-/* Küçük ekranlar için düzenleme (Opsiyonel) */
-@media (max-width: 768px) {
-    header, footer {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    .toolbar-group {
-        flex-wrap: wrap;
-        margin-bottom: 5px;
-    }
+#delete-obj {
+    background-color: #f44336; 
+    color: white;
 }
