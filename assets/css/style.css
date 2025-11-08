@@ -1,196 +1,200 @@
 :root {
     --primary-color: #007bff;
-    --primary-hover: #0056b3;
+    --success-color: #28a745;
     --danger-color: #dc3545;
-    --danger-hover: #a71d2a;
-    --bg-light: #f8f9fa;
-    --bg-dark: #343a40;
-    --bg-white: #ffffff;
-    --border-color: #dee2e6;
-    --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    --toolbar-bg: #f8f9fa;
+    --body-bg: #e9ecef;
+    --border-color: #ced4da;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Roboto', sans-serif;
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-    margin: 0;
-    background-color: var(--bg-light);
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    overflow: hidden; /* Sayfanın kaymasını engelle */
+    min-height: 100vh;
+    background-color: var(--body-bg);
 }
 
-/* --- 1. Ana Araç Çubuğu --- */
-.main-toolbar {
-    display: flex;
-    flex-wrap: wrap; /* Küçük ekranlarda sarsın */
+/* --- Loader --- */
+#loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.9);
+    display: none; /* JS ile açılacak */
+    justify-content: center;
     align-items: center;
-    padding: 8px 16px;
-    background-color: var(--bg-white);
+    flex-direction: column;
+    z-index: 1000;
+}
+
+.spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border-left-color: var(--primary-color);
+    animation: spin 1s ease infinite;
+    margin-bottom: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* --- Header ve Footer (Toolbar'lar) --- */
+header, footer {
+    background-color: var(--toolbar-bg);
+    padding: 10px 20px;
     border-bottom: 1px solid var(--border-color);
-    box-shadow: var(--shadow);
-    z-index: 100;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
 }
 
-.tool-group {
+footer {
+    border-top: 1px solid var(--border-color);
+    border-bottom: none;
+    margin-top: auto; /* Footbar'ı sayfanın altına sabitler */
+}
+
+.toolbar-group {
     display: flex;
     align-items: center;
-    padding: 0 10px;
-    border-right: 1px solid var(--border-color);
+    gap: 10px;
 }
-.tool-group:last-child {
-    border-right: none;
-    margin-left: auto; /* İndir butonunu sağa yasla */
+
+/* --- Buton Stilleri --- */
+.btn {
+    padding: 8px 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    background-color: white;
+    transition: background-color 0.2s;
+    font-size: 14px;
+}
+
+.btn:hover {
+    background-color: #e2e6ea;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+}
+
+.btn-success {
+    background-color: var(--success-color);
+    color: white;
+    border-color: var(--success-color);
+}
+
+.btn-success:hover {
+    background-color: #1e7e34;
+}
+
+.btn-danger {
+    color: var(--danger-color);
+    border-color: var(--danger-color);
+}
+
+.btn-danger:hover {
+    background-color: #f8d7da;
 }
 
 .tool-btn {
-    background: none;
-    border: none;
-    padding: 10px 12px;
-    margin: 0 2px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 16px;
-    color: #555;
-    transition: background-color 0.2s, color 0.2s;
-}
-
-.tool-btn:hover {
-    background-color: #f0f0f0;
-    color: #000;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    text-align: center;
 }
 
 .tool-btn.active {
     background-color: var(--primary-color);
-    color: var(--bg-white);
-}
-
-.tool-btn.file-label {
-    background-color: var(--primary-color);
     color: white;
-    font-weight: 500;
-}
-.tool-btn.file-label:hover {
-    background-color: var(--primary-hover);
 }
 
-.tool-btn.download-btn {
-    background-color: #28a745;
-    color: white;
-    font-weight: 500;
-}
-.tool-btn.download-btn:hover {
-    background-color: #1e7e34;
-}
-
-#page-indicator, #zoom-level {
-    margin: 0 10px;
+/* --- Bağlamsal Araç Çubuğu --- */
+#context-toolbar label, #context-toolbar input[type="number"] {
     font-size: 14px;
-    color: #333;
-    white-space: nowrap;
 }
 
-/* --- 2. Bağlamsal Araç Çubuğu --- */
-#context-toolbar {
-    position: absolute;
-    top: 80px; /* Ana çubuğun hemen altına */
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    align-items: center;
-    background: var(--bg-dark);
-    padding: 8px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    z-index: 101;
-}
-#context-toolbar label {
-    color: white;
-    margin: 0 5px 0 10px;
-}
-#context-toolbar input[type="color"] {
-    width: 25px;
-    height: 25px;
-    padding: 0;
-    border: 1px solid #777;
-    border-radius: 4px;
-}
-#context-toolbar input[type="range"] {
-    width: 80px;
-}
-#context-toolbar input[type="number"] {
-    width: 50px;
-}
-.delete-btn {
-    background-color: var(--danger-color);
-    color: white;
-    margin-left: 10px;
-}
-.delete-btn:hover {
-    background-color: var(--danger-hover);
-    color: white;
-}
-
-/* --- 3. Ana Düzenleyici Alanı --- */
-#main-content {
-    flex-grow: 1; /* Kalan tüm alanı kapla */
-    overflow: auto; /* PDF büyükse kaydırmayı sağlar */
+/* --- Ana İçerik ve Editör Alanı (KRİTİK) --- */
+main {
+    flex-grow: 1;
+    padding: 20px;
+    overflow: auto; /* Sayfa küçülürse ana içeriğin kaydırılmasına izin verir */
     display: flex;
     justify-content: center;
-    align-items: flex-start; /* Üstten başla */
-    padding-top: 20px;
-    position: relative;
+    align-items: flex-start; /* İçeriğin yukarıda başlamasını sağlar */
+}
+
+#editor-wrapper {
+    /* Editör alanını ortalamak ve kaydırmak için wrapper */
+    overflow: auto; 
+    max-width: 100%;
+    /* PDF boyutu ne olursa olsun, wrapper'ın kenarında kaydırma çubuğu sağlar */
 }
 
 #editor-container {
     position: relative;
-    margin: 20px;
-    /* Canvas'lar JS tarafından eklenecek */
+    /* Canvas'ları barındırır. Genişliği ve yüksekliği JS ile ayarlanır. */
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    background-color: white;
 }
 
-/* --- Kritik Katmanlama Stilleri --- */
-#pdf-canvas {
-    /* Alt katman (PDF) */
-    position: relative;
-    z-index: 1;
-    box-shadow: var(--shadow);
-    border: 1px solid #ccc;
+/* Canvas'ların üst üste gelmesini sağlayan KRİTİK CSS */
+#editor-container canvas {
+    position: absolute; 
+    top: 0;
+    left: 0;
 }
 
 #fabric-canvas {
-    /* Üst katman (Düzenleme) */
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 2;
-    /* JS tarafında pdf-canvas ile aynı konuma ve boyuta getirilecek */
+    z-index: 2; /* Fare olaylarını yakalaması için en üstte olmalı */
 }
 
-/* --- 4. Yükleyici (Loader) --- */
-#loader {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 200;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 20px;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 10px;
-    box-shadow: var(--shadow);
+#pdf-canvas {
+    z-index: 1;
 }
-.spinner {
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid var(--primary-color);
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    animation: spin 1s linear infinite;
-    margin-bottom: 15px;
+
+/* --- Footer Bilgileri --- */
+.page-info {
+    font-weight: bold;
+    min-width: 80px;
+    text-align: center;
 }
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+
+#zoom-level {
+    min-width: 60px;
+    text-align: center;
+}
+
+/* Küçük ekranlar için düzenleme (Opsiyonel) */
+@media (max-width: 768px) {
+    header, footer {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .toolbar-group {
+        flex-wrap: wrap;
+        margin-bottom: 5px;
+    }
 }
