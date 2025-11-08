@@ -59,7 +59,7 @@ fileInput.addEventListener('change', async (e) => {
     const fileReader = new FileReader();
 
     fileReader.onload = async function() {
-        originalPdfBytes = new UintArray(this.result);
+        originalPdfBytes = new Uint8Array(this.result);
         
         try {
             const loadingTask = pdfjsLib.getDocument({ data: originalPdfBytes });
@@ -86,21 +86,18 @@ async function renderPage(pageNum) {
     if (!pdfDoc) return;
     showLoader(true);
 
-    // --- DÜZELTME 1: ÖNCEKİ CANVAS'I İMHA ET (DISPOSE) ---
-    // Bu, sayfa veya zoom değiştiğinde eski canvas'ın
-    // olaylarının (events) bellekte kalmasını engeller.
+    // Önceki sayfadaysak, o sayfanın durumunu kaydet
     if (fabricCanvas) {
-        saveFabricState(); // Mevcut durumu kaydet
-        fabricCanvas.dispose(); // Eski canvas'ı bellekten at
-        fabricCanvas = null;  // Referansı temizle
+        saveFabricState();
     }
-    // ---------------------------------------------------
 
-    editorContainer.innerHTML = ''; // HTML'i temizle
-
+    // PDF sayfasını al
     const page = await pdfDoc.getPage(pageNum);
     const viewport = page.getViewport({ scale: currentZoom });
 
+    // Container'ı temizle
+    editorContainer.innerHTML = '';
+    
     // 1. PDF Canvas (Alt Katman)
     const pdfCanvas = document.createElement('canvas');
     pdfCanvas.id = 'pdf-canvas';
@@ -114,25 +111,29 @@ async function renderPage(pageNum) {
     fabricCanvasEl.width = viewport.width;
     fabricCanvasEl.height = viewport.height;
     
+    // Canvas'ları container'a ekle (DOM sırası önemli değil, CSS halleder)
     editorContainer.appendChild(pdfCanvas);
     editorContainer.appendChild(fabricCanvasEl);
     
+    // PDF'i alt katmana çiz
     await page.render({ canvasContext: context, viewport: viewport }).promise;
 
-    // Fabric.js'yi YENİ canvas elemanı üzerinde başlat
+    // Fabric.js'yi üst katmanda başlat
     fabricCanvas = new fabric.Canvas(fabricCanvasEl, {
         isDrawingMode: false,
     });
     
+    // Bu sayfanın kayıtlı bir durumu varsa yükle
     if (fabricState[pageNum]) {
         fabricCanvas.loadFromJSON(fabricState[pageNum], fabricCanvas.renderAll.bind(fabricCanvas));
     }
 
-    // Olay dinleyicilerini BU YENİ canvas için ayarla
+    // Fabric event'lerini ayarla
     setupFabricListeners();
-    // Aktif aracı BU YENİ canvas için ayarla
+    // Aktif aracı ayarla (örn: kalem modu açıksa)
     setTool(currentTool);
 
+    // UI Güncelle
     pageNumSpan.textContent = pageNum;
     showLoader(false);
 }
@@ -169,10 +170,12 @@ zoomOutBtn.addEventListener('click', () => {
 
 toolButtons.forEach(btn => {
     btn.addEventListener('click', (e) => {
+        // Aktif butonu güncelle
         toolButtons.forEach(b => b.classList.remove('active'));
         const clickedBtn = e.currentTarget;
         clickedBtn.classList.add('active');
         
+        // Aracı ayarla
         currentTool = clickedBtn.dataset.tool;
         setTool(currentTool);
     });
@@ -181,12 +184,13 @@ toolButtons.forEach(btn => {
 function setTool(tool) {
     if (!fabricCanvas) return;
     
-    fabricCanvas.isDrawingMode = false;
-    fabricCanvas.selection = true; 
+    fabricCanvas.isDrawingMode = false; // Önce tüm modları kapat
+    fabricCanvas.selection = true; // Seçime izin ver
     fabricCanvas.defaultCursor = 'default';
 
     switch (tool) {
         case 'select':
+            // Zaten varsayılan bu
             break;
         case 'pencil':
             fabricCanvas.isDrawingMode = true;
@@ -206,23 +210,15 @@ function setTool(tool) {
 
 // Canvas'a tıklandığında (text, shape eklemek için)
 function setupFabricListeners() {
-    if (!fabricCanvas) return; // Güvenlik kontrolü
-
-    // --- DÜZELTME 2: TÜM ESKİ OLAYLARI TEMİZLE ---
-    // Yeni canvas'a olay eklemeden önce, üzerinde
-    // hiçbir olay dinleyicisi olmadığından emin ol.
-    fabricCanvas.off();
-    // ------------------------------------------
-
+    fabricCanvas.off('mouse:down'); // Eski listener'ları temizle
+    fabricCanvas.off('mouse:up');
+    
     let isDrawing = false;
     let startPos = { x: 0, y: 0 };
     let newObject = null;
 
-    // YENİ OLAYLARI EKLE
     fabricCanvas.on('mouse:down', (o) => {
-        // "select" veya "pencil" modundaysak bu listener bir şey yapmamalı
-        // (pencil'ı fabric'in 'isDrawingMode'u kendi halleder)
-        if (currentTool === 'select' || currentTool === 'pencil') {
+        if (!['text', 'arrow', 'rect', 'circle', 'highlight'].includes(currentTool)) {
             return;
         }
 
@@ -238,12 +234,11 @@ function setupFabricListeners() {
                     top: startPos.y,
                     fill: color,
                     fontSize: parseInt(fontSizeInput.value, 10),
-                    fontFamily: 'Arial',
-                    originX: 'left',
-                    originY: 'top'
+                    fontFamily: 'Arial'
                 });
                 break;
             case 'arrow':
+                // Ok, bir çizgi ve bir üçgenden oluşan bir gruptur
                 const line = new fabric.Line([startPos.x, startPos.y, startPos.x, startPos.y], {
                     stroke: color,
                     strokeWidth: strokeWidth,
@@ -282,8 +277,6 @@ function setupFabricListeners() {
                     stroke: color,
                     strokeWidth: strokeWidth,
                     fill: 'transparent',
-                    originX: 'left',
-                    originY: 'top'
                 });
                 break;
             case 'highlight':
@@ -292,14 +285,14 @@ function setupFabricListeners() {
                     top: startPos.y,
                     width: 0,
                     height: 0,
-                    fill: color,
-                    opacity: 0.4,
+                    fill: color, // Vurgulayıcıda dolgu rengi kullanılır
+                    opacity: 0.4, // Yarı saydam
                     strokeWidth: 0,
                 });
                 break;
         }
         
-        if (newObject && currentTool !== 'text') { // Metin hariç diğerleri hemen eklenir
+        if (newObject && currentTool !== 'text') { // Metin anında eklenir
              fabricCanvas.add(newObject);
         }
     });
@@ -313,8 +306,6 @@ function setupFabricListeners() {
                 const line = newObject.item(0);
                 const arrowHead = newObject.item(1);
                 
-                // Grubun 'left' ve 'top'u değişmediği için
-                // çizginin ve okun pozisyonunu grubun *içinde* hesaplamalıyız
                 line.set({ x2: pos.x - startPos.x, y2: pos.y - startPos.y });
                 
                 const angle = Math.atan2(pos.y - startPos.y, pos.x - startPos.x) * 180 / Math.PI + 90;
@@ -327,11 +318,8 @@ function setupFabricListeners() {
             case 'rect':
             case 'highlight':
                 newObject.set({
-                    width: Math.abs(pos.x - startPos.x),
-                    height: Math.abs(pos.y - startPos.y),
-                    // Eğer mouse başlangıç noktasının soluna/üstüne geçerse diye
-                    originX: pos.x < startPos.x ? 'right' : 'left',
-                    originY: pos.y < startPos.y ? 'bottom' : 'top'
+                    width: pos.x - startPos.x,
+                    height: pos.y - startPos.y,
                 });
                 break;
             case 'circle':
@@ -351,23 +339,18 @@ function setupFabricListeners() {
     });
 
     fabricCanvas.on('mouse:up', () => {
-        if (!isDrawing) return; // 'select' modunda tıklayıp bırakırsak
-        
-        if (newObject) {
+        if (isDrawing && newObject) {
             if(currentTool === 'text') {
                  fabricCanvas.add(newObject);
             }
-            newObject.setCoords();
+            newObject.setCoords(); // Koordinatları güncelle
             fabricCanvas.setActiveObject(newObject);
+            isDrawing = false;
+            newObject = null;
+            // İş bittikten sonra seçim aracına geri dön
+            setTool('select');
+            toolSelectBtn.click();
         }
-        
-        isDrawing = false;
-        newObject = null;
-        // İş bittikten sonra seçim aracına geri dön
-        setTool('select');
-        // Butonun da "active" class'ını güncelle
-        toolButtons.forEach(b => b.classList.remove('active'));
-        toolSelectBtn.classList.add('active');
     });
 
     // --- 4. Bağlamsal Araç Çubuğu (Context Toolbar) ---
@@ -380,32 +363,32 @@ function updateContextToolbar(obj) {
     if (!obj) return;
     contextToolbar.style.display = 'flex';
 
+    // Varsayılan olarak tüm ayar gruplarını gizle
     strokeWidthGroup.style.display = 'none';
     fontSizeGroup.style.display = 'none';
     opacityGroup.style.display = 'none';
     
+    // Obje tipine göre ayarları göster
     if (obj.type === 'i-text') {
         colorPicker.value = obj.get('fill');
         fontSizeInput.value = obj.get('fontSize');
         fontSizeGroup.style.display = 'flex';
         
-    } else if (obj.type === 'path') { // Kalem
-        colorPicker.value = obj.get('stroke');
-        strokeWidthSlider.value = obj.get('strokeWidth');
-        strokeWidthGroup.style.display = 'flex';
-
-    } else if (obj.fill && obj.opacity < 1) { // Vurgulayıcı
-        colorPicker.value = obj.get('fill');
-        opacitySlider.value = obj.get('opacity');
-        opacityGroup.style.display = 'flex';
-
-    } else if (obj.type === 'group' || obj.type === 'rect' || obj.type === 'circle') {
+    } else if (obj.type === 'path' || obj.type === 'rect' || obj.type === 'circle' || obj.type === 'line' || obj.type === 'group') {
+        // 'group' (ok) veya diğer şekiller
         const stroke = obj.get('stroke') || (obj._objects && obj._objects[0].get('stroke'));
+        const fill = obj.get('fill') || (obj._objects && obj._objects[0].get('fill'));
         const strokeW = obj.get('strokeWidth') || (obj._objects && obj._objects[0].get('strokeWidth'));
         
-        colorPicker.value = stroke || '#ff0000';
-        strokeWidthSlider.value = strokeW || 5;
-        strokeWidthGroup.style.display = 'flex';
+        colorPicker.value = fill === 'transparent' ? stroke : fill;
+        
+        if (obj.get('opacity') && obj.get('opacity') < 1) { // Vurgulayıcı
+            opacitySlider.value = obj.get('opacity');
+            opacityGroup.style.display = 'flex';
+        } else {
+            strokeWidthSlider.value = strokeW || 5;
+            strokeWidthGroup.style.display = 'flex';
+        }
     }
 }
 
@@ -418,11 +401,9 @@ colorPicker.addEventListener('input', (e) => {
     
     if (obj.type === 'i-text') {
         obj.set('fill', color);
-    } else if (obj.type === 'path') { // Kalem
-        obj.set('stroke', color);
-    } else if (obj.fill && obj.opacity < 1) { // Vurgulayıcı
+    } else if (obj.get('opacity') && obj.get('opacity') < 1) { // Vurgulayıcı
          obj.set('fill', color);
-    } else if (obj.type === 'group') { // Ok
+    } else if (obj.type === 'group') { // Ok (grup)
         obj._objects.forEach(item => item.set(item.type === 'line' ? 'stroke' : 'fill', color));
     } else { // Diğer şekiller
         obj.set('stroke', color);
@@ -483,38 +464,56 @@ downloadBtn.addEventListener('click', async () => {
     }
     showLoader(true);
 
+    // Son sayfayı da kaydet
     saveFabricState();
     
     try {
+        // Orijinal PDF'i pdf-lib ile yükle
         const pdfLibDoc = await PDFDocument.load(originalPdfBytes);
         const pages = pdfLibDoc.getPages();
+        
+        // Fontları göm (metin eklendiyse gerekir)
         const helveticaFont = await pdfLibDoc.embedFont(StandardFonts.Helvetica);
         
+        // Her sayfayı işle
         for (let i = 1; i <= pdfDoc.numPages; i++) {
             const pageData = fabricState[i];
-            if (!pageData) continue; 
+            if (!pageData) continue; // Bu sayfada düzenleme yok
 
-            const pdfLibPage = pages[i - 1];
+            const pdfLibPage = pages[i - 1]; // pdf-lib 0-indeksli
             const { width, height } = pdfLibPage.getSize();
             
+            // Çizimleri PNG olarak overlay etme (En Sağlam Yöntem)
+            
+            // 1. Geçici bir Fabric canvas oluştur
             const tempCanvas = new fabric.StaticCanvas(null, { width, height });
             
-            // loadFromJSON asenkron olabilir, bu yüzden renderCallback'ini beklemeliyiz
+            // 2. O sayfanın durumunu bu geçici canvas'a yükle
             await new Promise(resolve => tempCanvas.loadFromJSON(pageData, resolve));
             
+            // 3. Canvas'ı PNG data URL'ine dönüştür
             const pngDataUrl = tempCanvas.toDataURL({ format: 'png' });
+            
+            // 4. PNG resmini PDF'e göm
             const pngImage = await pdfLibDoc.embedPng(pngDataUrl);
             
+            // 5. PNG resmini sayfanın tam üzerine çiz
             pdfLibPage.drawImage(pngImage, {
                 x: 0,
                 y: 0,
                 width: width,
                 height: height,
             });
-            tempCanvas.dispose(); // Geçici canvas'ı da temizle
+            
+            // (Alternatif - Metinleri ayrı işlemek): Bu daha karmaşıktır
+            // ama metinlerin seçilebilir kalmasını sağlar.
+            // Şimdilik PNG overlay daha garantidir.
         }
 
+        // 6. Yeni PDF dosyasını oluştur
         const pdfBytes = await pdfLibDoc.save();
+
+        // 7. Kullanıcıya indir
         download(pdfBytes, `duzenlenmis-${fileInput.files[0].name}`, "application/pdf");
 
     } catch (error) {
@@ -540,6 +539,7 @@ function showTools(show) {
     document.querySelector('.save-tools').style.display = display;
 }
 
+// Dosya indirme fonksiyonu
 function download(data, filename, type) {
     const blob = new Blob([data], { type: type });
     const url = window.URL.createObjectURL(blob);
